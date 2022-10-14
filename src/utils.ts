@@ -206,3 +206,28 @@ export function ChannelMediaRelayEventToNative(
       return CHANNEL_MEDIA_RELAY_EVENT.RELAY_EVENT_PACKET_UPDATE_DEST_CHANNEL_NOT_CHANGE;
   }
 }
+
+export class Completer<T> {
+  constructor() {
+    this._promise = new Promise((resolve, reject) => {
+      this._resolve = resolve;
+      this._reject = reject;
+    });
+  }
+
+  private _promise: Promise<T>;
+  private _resolve: (value: T | PromiseLike<T>) => void;
+  private _reject: (reason?: any) => void;
+
+  get promise() {
+    return this._promise;
+  }
+
+  complete(value: T | PromiseLike<T>) {
+    this._resolve(value);
+  }
+
+  completeError(reason?: any) {
+    this._reject(reason);
+  }
+}

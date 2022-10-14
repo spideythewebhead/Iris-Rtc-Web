@@ -20,24 +20,25 @@
   SDK_MODE,
   UID,
 } from 'agora-rtc-sdk-ng';
+import IrisRtcChannel from './IrisRtcChannel';
 import IrisRtcDeviceManager from './IrisRtcDeviceManager';
 import {
   ApiTypeEngine,
   AREA_CODE,
   AUDIENCE_LATENCY_LEVEL_TYPE,
+  AudioVolumeInfo,
   AUDIO_PROFILE_TYPE,
   AUDIO_SCENARIO_TYPE,
-  AudioVolumeInfo,
   BeautyOptions,
-  CHANNEL_PROFILE_TYPE,
   ChannelMediaOptions,
   ChannelMediaRelayConfiguration,
-  CLIENT_ROLE_TYPE,
+  CHANNEL_PROFILE_TYPE,
   ClientRoleOptions,
+  CLIENT_ROLE_TYPE,
   CLOUD_PROXY_TYPE,
   CONNECTION_STATE_TYPE,
-  ENCRYPTION_MODE,
   EncryptionConfig,
+  ENCRYPTION_MODE,
   ERROR_CODE_TYPE,
   InjectStreamConfig,
   LiveTranscoding,
@@ -52,8 +53,8 @@ import {
   REMOTE_VIDEO_STREAM_TYPE,
   RtcEngineContext,
   RtcStats,
-  RTMP_STREAM_PUBLISH_STATE,
   RTMP_STREAMING_EVENT,
+  RTMP_STREAM_PUBLISH_STATE,
   ScreenCaptureParameters,
   STREAM_FALLBACK_OPTIONS,
   VideoCanvas,
@@ -71,7 +72,6 @@ import {
   RtmpStreamingErrorToNative,
   UserLeftReasonToNative,
 } from './utils';
-import IrisRtcChannel from './IrisRtcChannel';
 
 const AgoraRTC = require('agora-rtc-sdk-ng');
 
@@ -240,12 +240,11 @@ export default class IrisRtcEngine {
     this._client.on(
       'user-published',
       async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
-        printf('user-published', user, mediaType);
         switch (mediaType) {
           case 'audio':
-            if (!this._enableAudio || this._defaultMuteAllRemoteAudioStreams)
+            if (this._defaultMuteAllRemoteAudioStreams) {
               return;
-            // TODO emitEvent('AudioPublishStateChanged', []);
+            }
             await this.muteRemoteAudioStream({ userId: user, mute: false });
             this._emitEvent('RemoteAudioStateChanged', {
               uid: user.uid,
@@ -256,9 +255,9 @@ export default class IrisRtcEngine {
             });
             break;
           case 'video':
-            if (!this._enableVideo || this._defaultMuteAllRemoteVideoStreams)
+            if (this._defaultMuteAllRemoteVideoStreams) {
               return;
-            // TODO emitEvent('VideoPublishStateChanged', []);
+            }
             await this.muteRemoteVideoStream({ userId: user, mute: false });
             this._emitEvent('RemoteVideoStateChanged', {
               uid: user.uid,
@@ -591,6 +590,14 @@ export default class IrisRtcEngine {
     return this._client.publish(track);
   }
 
+  private async _unpublish(track?: ILocalTrack) {
+    if (this._client === undefined) {
+      throw 'please create first';
+    }
+    if (track === undefined) return;
+    return this._client.unpublish(track);
+  }
+
   /**
    * Iris callApi for engine
    * @param apiType
@@ -832,9 +839,7 @@ export default class IrisRtcEngine {
   private async enableVideo(_?: {}): Promise<void> {
     this._enableVideo = true;
     await Promise.all([
-      this.deviceManager.enableLocalVideo(
-        this._enableVideo && this._enableLocalAudio
-      ),
+      this.enableLocalVideo({ enabled: this._enableVideo }),
       this.deviceManager.enableRemoteVideo(this._enableVideo),
     ]);
   }
@@ -842,9 +847,7 @@ export default class IrisRtcEngine {
   private async disableVideo(_?: {}): Promise<void> {
     this._enableVideo = false;
     await Promise.all([
-      this.deviceManager.enableLocalVideo(
-        this._enableVideo && this._enableLocalAudio
-      ),
+      this.enableLocalVideo({ enabled: this._enableVideo }),
       this.deviceManager.enableRemoteVideo(this._enableVideo),
     ]);
   }
@@ -866,11 +869,11 @@ export default class IrisRtcEngine {
     element?: HTMLElement
   ): Promise<void> {
     const { canvas } = params;
-    if (element !== undefined) {
+    if (element) {
       canvas.view = element;
     }
     const channel = this.channel.getChannel(canvas.channelId);
-    if (channel !== undefined) {
+    if (channel) {
       channel.deviceManager.setupLocalVideo(canvas);
     } else {
       this.deviceManager.setupLocalVideo(canvas);
@@ -882,11 +885,11 @@ export default class IrisRtcEngine {
     element?: HTMLElement
   ): Promise<void> {
     const { canvas } = params;
-    if (element !== undefined) {
+    if (element) {
       canvas.view = element;
     }
     const channel = this.channel.getChannel(canvas.channelId);
-    if (channel !== undefined) {
+    if (channel) {
       channel.deviceManager.setupRemoteVideo(canvas.uid, canvas);
     } else {
       this.deviceManager.setupRemoteVideo(canvas.uid, canvas);
@@ -897,20 +900,26 @@ export default class IrisRtcEngine {
     if (this._client === undefined) {
       throw 'please create first';
     }
-    if (this._client.channelName !== undefined) return;
-    await this.deviceManager.createCameraVideoTrack(
-      this._enableVideo && this._enableLocalVideo,
-      this._emitEvent.bind(this),
-      true
-    );
+    if (!this._client.channelName) {
+      return;
+    }
+    await this.deviceManager
+      .createCameraVideoTrack(true, this._emitEvent.bind(this), true)
+      .then((track) => this._publish(track));
   }
 
   private async stopPreview(_?: {}): Promise<void> {
     if (this._client === undefined) {
       throw 'please create first';
     }
-    if (this._client.channelName !== undefined) return;
-    return this.deviceManager.stopCameraCapture();
+    if (!this._client.channelName) {
+      return;
+    }
+    try {
+      await this._unpublish(this.deviceManager.getLocalVideoTrack());
+    } finally {
+      this.deviceManager.stopCameraCapture();
+    }
   }
 
   private async enableAudio(_?: {}): Promise<void> {
@@ -925,9 +934,7 @@ export default class IrisRtcEngine {
 
   private async enableLocalAudio(params: { enabled: boolean }): Promise<void> {
     this._enableLocalAudio = params.enabled;
-    return this.deviceManager.enableLocalAudio(
-      this._enableAudio && this._enableLocalAudio
-    );
+    return this.deviceManager.enableLocalAudio(this._enableLocalAudio);
   }
 
   private async disableAudio(_?: {}): Promise<void> {
@@ -1026,7 +1033,7 @@ export default class IrisRtcEngine {
       }
       if (!params.mute) {
         return this._client.subscribe(user, 'audio').then((track) => {
-          track.on('first-frame-decoded', () => {
+          track.once('first-frame-decoded', () => {
             printf('first-frame-decoded', 'audio', track);
             this._emitEvent('RemoteAudioStateChanged', {
               uid: user.uid,
@@ -1068,9 +1075,7 @@ export default class IrisRtcEngine {
 
   private async enableLocalVideo(params: { enabled: boolean }): Promise<void> {
     this._enableLocalVideo = params.enabled;
-    return this.deviceManager.enableLocalVideo(
-      this._enableVideo && this._enableLocalVideo
-    );
+    return this.deviceManager.enableLocalVideo(this._enableLocalVideo);
   }
 
   public async muteAllRemoteVideoStreams(params: {
@@ -1109,8 +1114,8 @@ export default class IrisRtcEngine {
         throw 'please create first';
       }
       if (!params.mute) {
-        return this._client.subscribe(user, 'video').then((track) => {
-          track.on('first-frame-decoded', () => {
+        return await this._client.subscribe(user, 'video').then((track) => {
+          track.once('first-frame-decoded', () => {
             printf('first-frame-decoded', 'video', track);
             this._emitEvent('RemoteVideoStateChanged', {
               uid: user.uid,
@@ -1124,7 +1129,7 @@ export default class IrisRtcEngine {
           this.deviceManager.playRemoteVideo(user.uid);
         });
       } else {
-        return this._client.unsubscribe(user, 'video').then(() => {
+        return await this._client.unsubscribe(user, 'video').then(() => {
           this.deviceManager.removeRemoteAudioTrack(user.uid);
         });
       }
@@ -1138,7 +1143,7 @@ export default class IrisRtcEngine {
         })
       );
     } else {
-      return muteRemoteVideoStream(params.userId);
+      await muteRemoteVideoStream(params.userId);
     }
   }
 

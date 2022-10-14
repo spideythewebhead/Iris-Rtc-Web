@@ -23,8 +23,8 @@ import {
   LOCAL_VIDEO_STREAM_STATE,
   RENDER_MODE_TYPE,
   ScreenCaptureParameters,
-  VIDEO_MIRROR_MODE_TYPE,
   VideoCanvas,
+  VIDEO_MIRROR_MODE_TYPE,
 } from './types.native';
 import { printf } from './utils';
 
@@ -40,7 +40,7 @@ class IrisVideoTrackManager {
     track: ILocalVideoTrack | IRemoteVideoTrack | undefined,
     canvas?: VideoCanvas
   ) {
-    if (canvas === undefined) {
+    if (!canvas) {
       return;
     }
     let userId: number;
@@ -67,9 +67,6 @@ class IrisVideoTrackManager {
           break;
       }
       const div = canvas.view as HTMLDivElement;
-      for (let i = 0; i < div.children.length; i++) {
-        div.removeChild(div.children.item(i)!);
-      }
       let mirror: boolean;
       if (userId === 0) {
         mirror =
@@ -241,6 +238,10 @@ class IrisLocalTrackManager extends IrisVideoTrackManager {
     return this.localVideoTrack;
   }
 
+  public getLocalVideoTrack() {
+    return this.localVideoTrack;
+  }
+
   public async enableLocalAudio(enabled: boolean) {
     return this.localAudioTrack?.setEnabled(enabled);
   }
@@ -305,7 +306,7 @@ class IrisLocalTrackManager extends IrisVideoTrackManager {
   }
 
   public setupLocalVideo(canvas?: VideoCanvas) {
-    if (canvas === undefined) {
+    if (!canvas) {
       this.canvasMap.delete(0);
     } else {
       this.canvasMap.set(canvas.uid, canvas);
@@ -332,10 +333,7 @@ class IrisRemoteTrackManager extends IrisLocalTrackManager {
   }
 
   public getRemoteAudioTrack(uid: UID): IRemoteAudioTrack | undefined {
-    const index = this.remoteAudioTracks.findIndex(
-      (value) => value.getUserId() === uid
-    );
-    return this.remoteAudioTracks[index];
+    return this.remoteAudioTracks.find((value) => value.getUserId() === uid);
   }
 
   public removeRemoteAudioTrack(uid: UID) {
@@ -354,10 +352,7 @@ class IrisRemoteTrackManager extends IrisLocalTrackManager {
   }
 
   public getRemoteVideoTrack(uid: UID): IRemoteVideoTrack | undefined {
-    const index = this.remoteVideoTracks.findIndex(
-      (value) => value.getUserId() === uid
-    );
-    return this.remoteVideoTracks[index];
+    return this.remoteVideoTracks.find((value) => value.getUserId() === uid);
   }
 
   public removeRemoteVideoTrack(uid: UID) {
@@ -406,7 +401,7 @@ class IrisRemoteTrackManager extends IrisLocalTrackManager {
   }
 
   public setupRemoteVideo(uid: UID, canvas?: VideoCanvas) {
-    if (canvas === undefined) {
+    if (!canvas) {
       this.canvasMap.delete(uid);
     } else {
       this.canvasMap.set(uid, canvas);

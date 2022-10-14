@@ -3872,7 +3872,7 @@ export interface UserInfo {
 /**
  *  Regions for connetion.
  */
-export enum AREA_CODE {
+export const enum AREA_CODE {
   /**
    * Mainland China.
    */
