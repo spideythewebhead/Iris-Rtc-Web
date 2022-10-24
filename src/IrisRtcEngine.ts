@@ -549,29 +549,39 @@ export default class IrisRtcEngine {
     }
   }
 
-  private static async _setArea(areaCodes?: AREA_CODE[]): Promise<void> {
-    if (areaCodes !== undefined) {
-      return AgoraRTC.setArea(
-        areaCodes.map((value) => {
-          switch (value) {
-            case AREA_CODE.AREA_CODE_CN:
-              return AREAS.CHINA;
-            case AREA_CODE.AREA_CODE_NA:
-              return AREAS.NORTH_AMERICA;
-            case AREA_CODE.AREA_CODE_EU:
-              return AREAS.EUROPE;
-            case AREA_CODE.AREA_CODE_AS:
-              return AREAS.ASIA;
-            case AREA_CODE.AREA_CODE_JP:
-              return AREAS.JAPAN;
-            case AREA_CODE.AREA_CODE_IN:
-              return AREAS.INDIA;
-            case AREA_CODE.AREA_CODE_GLOB:
-              return AREAS.GLOBAL;
-          }
-        })
-      );
-    }
+  private static async _setArea(areaCode: number): Promise<void> {
+    const area =
+      [
+        AREA_CODE.AREA_CODE_CN,
+        AREA_CODE.AREA_CODE_NA,
+        AREA_CODE.AREA_CODE_EU,
+        AREA_CODE.AREA_CODE_AS,
+        AREA_CODE.AREA_CODE_JP,
+        AREA_CODE.AREA_CODE_IN,
+        AREA_CODE.AREA_CODE_GLOB,
+        // eslint-disable-next-line no-bitwise
+      ].filter((code) => code & areaCode)[0] ?? AREA_CODE.AREA_CODE_GLOB;
+
+    return AgoraRTC.setArea(
+      (() => {
+        switch (area) {
+          case AREA_CODE.AREA_CODE_CN:
+            return AREAS.CHINA;
+          case AREA_CODE.AREA_CODE_NA:
+            return AREAS.NORTH_AMERICA;
+          case AREA_CODE.AREA_CODE_EU:
+            return AREAS.EUROPE;
+          case AREA_CODE.AREA_CODE_AS:
+            return AREAS.ASIA;
+          case AREA_CODE.AREA_CODE_JP:
+            return AREAS.JAPAN;
+          case AREA_CODE.AREA_CODE_IN:
+            return AREAS.INDIA;
+          case AREA_CODE.AREA_CODE_GLOB:
+            return AREAS.GLOBAL;
+        }
+      })()
+    );
   }
 
   private async _publish(track?: ILocalTrack) {
@@ -642,9 +652,12 @@ export default class IrisRtcEngine {
     config?: ClientConfig
   ): Promise<void> {
     this._context = params.context;
-    await IrisRtcEngine._setArea(params.context.areaCode);
+
+    if (params.context.areaCode) {
+      await IrisRtcEngine._setArea(params.context.areaCode);
+    }
     await IrisRtcEngine._setLogLevel({
-      level: params.context.logConfig?.level,
+      level: params.context.logConfig?.level ?? LOG_LEVEL.LOG_LEVEL_NONE,
     });
     if (config !== undefined) {
       this._config = config;
